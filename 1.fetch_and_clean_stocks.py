@@ -2,7 +2,6 @@
 # Phase 1 of prediction of biostock recovery following a crash project, step 1.
 # Fetches and cleans NASDAQ stockmarket data for crash detection
 
-
 import yfinance as yf
 import pandas as pd
 import datetime
@@ -23,7 +22,7 @@ import datetime
 
 # c) Small crash – Kodiak Sciences (KOD) crashed 33% 27/3 – 1/4/24
 
-
+# define companies codes and dates of crash
 company_codes = ['RAPT', 'GPCR', 'KOD']
 crash_strings = {
     'RAPT': '2024-02-24',
