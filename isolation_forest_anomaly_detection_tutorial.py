@@ -9,7 +9,7 @@
 #                  To learn how to implement an isolation forest to detect anomalies in stock prices
 #                  https://www.analyticsvidhya.com/blog/2023/02/anomaly-detection-on-google-stock-data-2014-2022/
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#%%
+
 import os
 import pandas as pd
 import numpy as np
@@ -26,8 +26,6 @@ in_dir = os.path.join(project_dir, "raw_files")
 ################################################################################
 ### 1. Load and clean the dataset  ###
 ################################################################################
-
-#%%
 
 # load and check for missing values
 orig_data = pd.read_excel(os.path.join(in_dir, 'Google Dataset.xlsx'))
@@ -48,24 +46,23 @@ data.iloc[missing_dates[0], :]
 orig_data.iloc[missing_dates[0], :]
 
 # Replacing the missing values after cross verifying
-data['Month Starting'][31] = pd.to_datetime('2020-05-01')
-data['Month Starting'][43] = pd.to_datetime('2019-05-01')
-data['Month Starting'][55] = pd.to_datetime('2018-05-01')
+data.loc[31, 'Month Starting'] = pd.to_datetime('2020-05-01')
+data.loc[43, 'Month Starting'] = pd.to_datetime('2019-05-01')
+data.loc[55, 'Month Starting'] = pd.to_datetime('2018-05-01')
 
-#%%
+
 # Convert to Month Starting to datetime objects
 data['Month Starting'] = pd.to_datetime(data['Month Starting'])
 # Sort by month
 data.sort_values(by='Month Starting', ascending = True, inplace = True)
 
 print(data)
-#%%
+
 
 ################################################################################
 ### 2. Exploratory data analysis  ###
 ################################################################################
 
-#%%
 plt.figure(figsize=(25,5))
 plt.plot(data['Month Starting'],data['Open'], label='Open')
 plt.plot(data['Month Starting'],data['Close'], label='Close')
@@ -75,7 +72,6 @@ plt.legend()
 plt.title('Change in the stock price of Google over the years')
 
 
-# %%
 # Calculating the daily returns
 data['Returns'] = data['Close'].pct_change()
 
@@ -88,10 +84,24 @@ plt.figure(figsize=(10,5))
 
 sns.lineplot(x='Month Starting', y='Rolling Average', data=data)
 
-# %%
+# Scale returns data to have a mean of 0 and a sd of 1
 scaler = StandardScaler()
-data['Returns']
+data['Returns'] = scaler.fit_transform(data['Returns'].values.reshape(-1,1))
+
+# Check scaling
+data.head()
+data['Returns'].mean(skipna=True)
+data['Returns'].std(skipna=True)
 
 
 
-# %%
+
+# Fill NaN values with the mean of the columns
+data = data.replace('nan', np.nan)
+np.where(data['Returns'].isnull())
+data['Returns'] = data['Returns'].fillna(data['Returns'].mean(skipna=True))
+
+np.where(data['Rolling Average'].isnull())
+data['Returns'] = data['Rolling Average'].fillna(data['Rolling Average'].mean(skipna=True))
+np.where(data['Rolling Average'].isna())
+data.loc[105,'Rolling Average'].nan_to_num(data.loc[105,'Rolling Average'], nan = 0)
