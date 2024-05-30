@@ -2,9 +2,21 @@
 # Phase 1 of prediction of biostock recovery following a crash project, step 1.
 # Fetches and cleans NASDAQ stockmarket data for crash detection
 
+import os
 import yfinance as yf
 import pandas as pd
 import datetime
+from dateutil.relativedelta import relativedelta
+import pickle
+from sklearn.ensemble import IsolationForest
+
+crash_window = 12    # number of months around crash date to grab
+
+home_dir = "/Users/jamestorpy/Desktop"
+project_dir = os.path.join(home_dir, "machine_learning/biostock_prediction")
+out_dir = os.path.join(project_dir, "results")
+
+os.makedirs(out_dir, exist_ok=True)
 
 
 #########################################################################################
@@ -30,13 +42,23 @@ crash_strings = {
     'KOD': '2024-03-29'
 }
 
-crash_dates = {key: datetime.datetime.strptime(date_str, '%Y-%m-%d') for key, date_str in crash_strings.items()}
+# convert to datetime
+crash_dates = {key: datetime.datetime.strptime(date_str, '%Y-%m-%d') for 
+    key, date_str in crash_strings.items()}
+
+# define window around crash dates
+crash_dates = {key: datetime.datetime.strptime(date_str, '%Y-%m-%d') for 
+    key, date_str in crash_strings.items()}
+
+crash_windows = {key: [date - relativedelta(months = crash_window/2), 
+    date + relativedelta(months = crash_window/2)] for 
+    key, date in crash_dates.items()}
 
 
+crash_data = {key: yf.download(key, start=start_date, 
+    end=end_date, interval="1h") for key, (start_date, end_date) in 
+    crash_windows.items()}
 
-
-date_ranges = [[]
-    for symbol, date in date_ranges.items()]
-
-nasdaq_data = [yf.download(symbol, start=start_date, end=end_date, interval="1h")
-    for symbol, (start_date, end_date) in date_ranges.items()]
+# save as pickle file
+with open(os.path.join(out_dir, 'test_crash_data.pickle'), 'wb') as file:
+    pickle.dump(crash_data, file, protocol=pickle.HIGHEST_PROTOCOL)

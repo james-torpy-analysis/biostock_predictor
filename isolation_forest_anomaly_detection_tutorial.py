@@ -16,6 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import IsolationForest
 
 home_dir = "/Users/jamestorpy/Desktop"
 project_dir = os.path.join(home_dir, "machine_learning/biostock_prediction")
@@ -93,15 +94,67 @@ data.head()
 data['Returns'].mean(skipna=True)
 data['Returns'].std(skipna=True)
 
-
-
-
 # Fill NaN values with the mean of the columns
 data = data.replace('nan', np.nan)
 np.where(data['Returns'].isnull())
 data['Returns'] = data['Returns'].fillna(data['Returns'].mean(skipna=True))
 
 np.where(data['Rolling Average'].isnull())
-data['Returns'] = data['Rolling Average'].fillna(data['Rolling Average'].mean(skipna=True))
-np.where(data['Rolling Average'].isna())
-data.loc[105,'Rolling Average'].nan_to_num(data.loc[105,'Rolling Average'], nan = 0)
+data['Rolling Average'] = data['Rolling Average'].fillna(data['Rolling Average'].mean(skipna=True))
+np.where(data['Rolling Average'].isnull())
+
+# Train isolation forest model
+model = IsolationForest(contamination=0.05)
+model.fit(data[['Returns']])
+
+# 'contamination' is an estimate of the proportion of outliers in the data.
+# A higher value allows more anomalies to be detected.
+# If we use the default 'auto' value, the algorithm automatically estimates
+# outlier proportion based on the data.
+
+# Predicting anomalies
+data['Anomaly'] = model.predict(data[['Returns']])
+
+# -1 represents an anomaly, 1 represents everything else
+# Convert to 0 and 1
+data['Anomaly'] = data['Anomaly'].map({1: 0, -1: 1})
+
+# Plot the results
+plt.figure(figsize=(13,5))
+plt.plot(data.index, data['Returns'], label='Returns')
+plt.scatter(data[data['Anomaly'] == 1].index, data[data['Anomaly'] == 1]['Returns'], color='red')
+plt.legend(['Returns', 'Anomaly'])
+plt.show()
+
+# create functions
+def predict_anomalies(data_df, cont_val):
+    
+    # Train isolation forest model
+    if_model = IsolationForest(contamination=cont_val)
+    if_model.fit(data_df[['Returns']])
+    
+    # Predict anomalies
+    data_df['Anomaly'] = if_model.predict(data_df[['Returns']])
+    data_df['Anomaly'] = data_df['Anomaly'].map({1: 0, -1: 1})
+    
+    return data_df
+
+def plot_anomalies(data_df):
+    plt.figure(figsize=(13,5))
+    plt.plot(data_df.index, data_df['Returns'], label='Returns')
+    plt.scatter(data_df[data_df['Anomaly'] == 1].index, data_df[data_df['Anomaly'] == 1]['Returns'], color='red')
+    plt.legend(['Returns', 'Anomaly'])
+    plt.show()
+
+# Try with auto contamination
+data2 = predict_anomalies(data, cont_val = "auto")
+plot_anomalies(data2)
+
+# Too many detected
+
+# Try with lower and higher contamination values
+data3 = predict_anomalies(data, cont_val = 0.01)
+plot_anomalies(data3)
+
+data4 = predict_anomalies(data, cont_val = 0.5)
+plot_anomalies(data4)
