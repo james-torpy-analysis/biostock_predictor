@@ -27,6 +27,12 @@ in_dir = os.path.join(project_dir, 'results')
 # set seed for reproducibility
 seed = 54
 
+# define contamination value
+cont_val = 0.01
+
+# define percentage drop required
+perc_drop_req = 30
+
 # create functions
 def predict_anomalies(data_df, cont_val, acolname):
 
@@ -88,3 +94,27 @@ predicted_anomalies = {key: predict_anomalies(df, cont_val = 0.01, acolname = 'A
 ################################################################################
 ### 3. Filter for crashes  ###
 ################################################################################
+
+# fetch array of anomaly close values
+df = predicted_anomalies['RAPT']
+anomaly_ind = np.where(df['Anomalies_0.01_contamination'] == 1)[0]
+anomaly_df = df.iloc[anomaly_ind,]
+anomaly_closes = anomaly_df['Close'].tolist()
+
+# fetch array of the values of the datapoints right before the anomalies
+preanomaly_df = df.iloc[anomaly_ind-1,]
+preanomaly_closes = preanomaly_df['Close'].tolist()
+
+# find the indices of the crashes, where the anomaly close value is less than the preanomaly close value
+crash_logical = [anomaly < preanomaly for anomaly, preanomaly in zip(anomaly_closes, preanomaly_closes)]
+crash_ind = anomaly_ind[crash_logical]
+
+# check and caluclate close differences of crashes (preanomaly close < anomaly close)
+close_diffs = pd.concat([df['Close'][crash_ind-1].reset_index(drop = True), df['Close'][crash_ind].reset_index(drop = True)], axis = 1)
+close_diffs.columns = ['preanomaly_close', 'anomaly_close']
+close_diffs.index = df['Close'][crash_ind].index
+close_diffs['close_difference'] = close_diffs['anomaly_close'] - close_diffs['preanomaly_close']
+close_diffs['percent_difference'] = abs(close_diffs['close_difference']/close_diffs['preanomaly_close']*100).round(1)
+
+# filter for those with a drop of at least 30% - need to adjust this so it's 30% over a time period of n days!
+close_diffs[close_diffs['percent_difference'] >= perc_drop_req]
