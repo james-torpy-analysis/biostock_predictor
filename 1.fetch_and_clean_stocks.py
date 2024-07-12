@@ -1,64 +1,53 @@
 
-# Phase 1 of prediction of biostock recovery following a crash project, step 1.
+# Phase 1 of prediction of biostock recovery following a crash project
 # Fetches and cleans NASDAQ stockmarket data for crash detection
 
 import os
-import yfinance as yf
 import pandas as pd
 import datetime
 from dateutil.relativedelta import relativedelta
+import time
+from datetime import date
 import pickle
-from sklearn.ensemble import IsolationForest
 
-crash_window = 12    # number of months around crash date to grab
+# import functions
+from functions import get_symbols
+from functions import split_stock_data
+from functions import download_stock_data
+
+todays_date = date.today().strftime("%d_%m_%y")
 
 home_dir = "/Users/jamestorpy/Desktop"
 project_dir = os.path.join(home_dir, "machine_learning/biostock_prediction")
-out_dir = os.path.join(project_dir, "results")
+out_dir = os.path.join(project_dir, "results/past_stock_data", todays_date)
 
 os.makedirs(out_dir, exist_ok=True)
 
+data_window = 30   # number of past days to download
+batch_size = 10 # number of symbols to download from in one go
+
 
 #########################################################################################
-### 1. Download data ###
+### 1. Download and parse all NASDAQ stocks ###
 #########################################################################################
 
-# Downloading the following data:
+# fetch and parse symbols of all NASDAQ stock symbols
+nasdaq_symbols = get_symbols()
 
-# a) Massive crash - Rapt Therapeutics (RAPT) – crashed 74% on 20/2/24 as two clinical 
-# studies put on hold by FDA – has not recovered
+# download all data in batches
+start_time = time.time()
+nasdaq_data = download_stock_data(nasdaq_symbols, data_window, batch_size, out_dir)
+end_time = time.time()
+end_time - start_time
 
-# b) Medium crash – Structure Therapeutics (GPCR) – crashed 43% on 18/12/23 after 
-# publishing some clinical trial data the market disliked – half recovery within month, 
-# then steady decline for next 5 months
+# save as pickle file - need to fix this!
+pickle_file = os.path.join(out_dir, f'nasdaq_data_{todays_date}.pickle')
+with open(pickle_file, 'wb') as file:
+    pickle.dump(nasdaq_data, file, protocol=pickle.HIGHEST_PROTOCOL)
+    
 
-# c) Small crash – Kodiak Sciences (KOD) crashed 33% 27/3 – 1/4/24
+    
+#########################################################################################
+### 2. Detect anomalies ###
+#########################################################################################
 
-# define companies codes and dates of crash
-company_codes = ['RAPT', 'GPCR', 'KOD']
-crash_strings = {
-    'RAPT': '2024-02-24',
-    'GPCR': '2023-12-18',
-    'KOD': '2024-03-29'
-}
-
-# convert to datetime
-crash_dates = {key: datetime.datetime.strptime(date_str, '%Y-%m-%d') for 
-    key, date_str in crash_strings.items()}
-
-# define window around crash dates
-crash_dates = {key: datetime.datetime.strptime(date_str, '%Y-%m-%d') for 
-    key, date_str in crash_strings.items()}
-
-crash_windows = {key: [date - relativedelta(months = crash_window/2), 
-    date + relativedelta(months = crash_window/2)] for 
-    key, date in crash_dates.items()}
-
-
-crash_data = {key: yf.download(key, start=start_date, 
-    end=end_date, interval="1h") for key, (start_date, end_date) in 
-    crash_windows.items()}
-
-# save as pickle file
-with open(os.path.join(out_dir, 'test_crash_data.pickle'), 'wb') as file:
-    pickle.dump(crash_data, file, protocol=pickle.HIGHEST_PROTOCOL)
