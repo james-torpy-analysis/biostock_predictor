@@ -33,6 +33,9 @@ cont_val = 0.01
 # define percentage drop required
 perc_drop_req = 30
 
+# define time period in which percentage drop must occur (days)
+perc_drop_time = 7
+
 # create functions
 def predict_anomalies(data_df, cont_val, acolname):
 
@@ -114,7 +117,34 @@ close_diffs = pd.concat([df['Close'][crash_ind-1].reset_index(drop = True), df['
 close_diffs.columns = ['preanomaly_close', 'anomaly_close']
 close_diffs.index = df['Close'][crash_ind].index
 close_diffs['close_difference'] = close_diffs['anomaly_close'] - close_diffs['preanomaly_close']
-close_diffs['percent_difference'] = abs(close_diffs['close_difference']/close_diffs['preanomaly_close']*100).round(1)
+close_diffs['percent_difference_from_preanomaly'] = abs(close_diffs['close_difference']/close_diffs['preanomaly_close']*100).round(1)
 
-# filter for those with a drop of at least 30% - need to adjust this so it's 30% over a time period of n days!
+
+
+
+# filter for those with a drop of at least perc_drop_req within perc_drop_time
+thresh_passes = list()
+for i, row in close_diffs.iterrows():
+    
+    # identify index of crash_data with same date as row plus next perc_drop_time rows
+    row_ind = np.where(row.name == crash_data['RAPT'].index)[0][0]
+    row_inds = range(row_ind, (row_ind+perc_drop_time))
+    
+    # fetch the closes of these timepoints
+    crash_vals = crash_data['RAPT'].iloc[row_inds, ]
+    crash_closes = crash_vals['Close']
+    
+    # calculate percentage drops from preanomaly close
+    perc_drops = [((row['preanomaly_close']-close)/row['preanomaly_close'])*100 for close in list(crash_closes)]
+    
+    # determine which passed threshold
+    thresh_pass = [drop > perc_drop_req for drop in perc_drops]
+    
+    if (any(thresh_pass)):
+        thresh_passes[i] = True
+    else:
+        thresh_passes[i] = False
+
+
+
 close_diffs[close_diffs['percent_difference'] >= perc_drop_req]
