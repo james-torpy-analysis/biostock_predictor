@@ -1,0 +1,76 @@
+# Operating System Files
+*.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE and Editor Files
+*.iml
+*.ipynb
+*.swp
+*.swo
+*.vs
+*.vscode
+*.idea
+
+# Build and Compilation Files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+*.bin
+
+# Log Files
+*.log
+*.out
+*.err
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+
+# Cache Files
+*.cache
+*.sqlite
+
+# Dependency Files
+*.egg-info
+*.whl
+*.zip
+*.tar.gz
+*.tgz
+
+# Node.js Files
+node_modules/
+
+# Python Files
+__pycache__/
+*.pyc
+*.pyo
+
+# Java Files
+*.class
+
+# Other Files
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+*.zip
+*.rar
+*.7z
+
+# Directories
+.vscode/
+.idea/
+node_modules/
+__pycache__/
+bin/
+obj/
+
