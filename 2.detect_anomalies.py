@@ -20,8 +20,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
 import matplotlib.pyplot as plt
 
-home_dir = '/Users/jamestorpy/Desktop'
-project_dir = os.path.join(home_dir, 'machine_learning/biostock_prediction')
+home_dir = '/Users/torpxor/Desktop'
+project_dir = os.path.join(home_dir, 'biostock_prediction')
 in_dir = os.path.join(project_dir, 'results')
 
 # set seed for reproducibility
@@ -63,6 +63,24 @@ def plot_anomaly_sets(data_df):
     plot_anomalies(data_df, mcolname = "VolumeClose", acolname = 'Anomalies_0.01_contamination')
     plot_anomalies(data_df, mcolname = "Adj Close", acolname = 'Anomalies_0.01_contamination')
     plot_anomalies(data_df, mcolname = "Volume", acolname = 'Anomalies_0.01_contamination')
+
+def extract_first_indices(lst):
+    """Extracts the first index of concurrent sequences of indices from a list.
+
+    Args:
+        lst: A list of integers.
+
+    Returns:
+        A list of the first indices of concurrent sequences.
+    """
+
+    first_indices = [0]
+  
+    for i, val in enumerate(lst):
+        if i != 0:
+            if lst[i] != lst[i - 1] + 1:  # Check if the current number is not consecutive
+                first_indices.append(i)
+    return first_indices
 
 
 ################################################################################
@@ -112,10 +130,24 @@ preanomaly_closes = preanomaly_df['Close'].tolist()
 crash_logical = [anomaly < preanomaly for anomaly, preanomaly in zip(anomaly_closes, preanomaly_closes)]
 crash_ind = anomaly_ind[crash_logical]
 
-# check and caluclate close differences of crashes (preanomaly close < anomaly close)
+# check and calculate close differences of crashes (preanomaly close < anomaly close)
 close_diffs = pd.concat([df['Close'][crash_ind-1].reset_index(drop = True), df['Close'][crash_ind].reset_index(drop = True)], axis = 1)
-close_diffs.columns = ['preanomaly_close', 'anomaly_close']
 close_diffs.index = df['Close'][crash_ind].index
+
+# determine the indices of anomalies in crash_data['RAPT']
+anomaly_ind = [np.where(crash_data['RAPT'].index == c)[0][0] for c in close_diffs.index]
+
+# take only the first index of consecutive sequences of indices
+anomaly_ind2 = extract_first_indices(anomaly_ind)
+
+# subset anomaly_ind and close_diffs
+anomaly_ind = [ind for i, ind in enumerate(anomaly_ind) if i in anomaly_ind2]
+close_diffs = close_diffs.iloc[anomaly_ind2,]
+
+# insert the preanomaly dates using anomaly_ind - 1
+preanomaly_ind = [ind-1 for ind in anomaly_ind]
+close_diffs.insert(0, 'preanomaly_date', crash_data['RAPT'].index[preanomaly_ind])
+close_diffs.columns = ['preanomaly_date', 'preanomaly_close', 'anomaly_close']
 close_diffs['close_difference'] = close_diffs['anomaly_close'] - close_diffs['preanomaly_close']
 close_diffs['percent_difference_from_preanomaly'] = abs(close_diffs['close_difference']/close_diffs['preanomaly_close']*100).round(1)
 
@@ -127,8 +159,10 @@ thresh_passes = list()
 for i, row in close_diffs.iterrows():
     
     # identify index of crash_data with same date as row plus next perc_drop_time rows
-    row_ind = np.where(row.name == crash_data['RAPT'].index)[0][0]
-    row_inds = range(row_ind, (row_ind+perc_drop_time))
+    pre_ind = np.where(row['preanomaly_date'] in crash_data['RAPT'].index)[0][0]
+    print(pre_ind)
+
+    row_inds = range(pre_ind, (pre_ind+perc_drop_time))
     
     # fetch the closes of these timepoints
     crash_vals = crash_data['RAPT'].iloc[row_inds, ]
