@@ -155,30 +155,41 @@ close_diffs['percent_difference_from_preanomaly'] = abs(close_diffs['close_diffe
 
 
 # filter for those with a drop of at least perc_drop_req within perc_drop_time
-thresh_passes = list()
+# create output table
+potential_drop_list = []
+
+# iterate through the close_diffs rows
+j=0
 for i, row in close_diffs.iterrows():
     
     # identify index of crash_data with same date as row plus next perc_drop_time rows
-    pre_ind = np.where(row['preanomaly_date'] in crash_data['RAPT'].index)[0][0]
-    print(pre_ind)
-
+    pre_ind = np.where(row['preanomaly_date'] == crash_data['RAPT'].index)[0][0]
     row_inds = range(pre_ind, (pre_ind+perc_drop_time))
-    
-    # fetch the closes of these timepoints
+
+    # fetch the dates and closes of these timepoints
     crash_vals = crash_data['RAPT'].iloc[row_inds, ]
+    crash_dates = crash_vals.index
     crash_closes = crash_vals['Close']
     
-    # calculate percentage drops from preanomaly close
-    perc_drops = [((row['preanomaly_close']-close)/row['preanomaly_close'])*100 for close in list(crash_closes)]
+    # calculate percentage changes from preanomaly close
+    perc_changes = [((close - row['preanomaly_close'])/row['preanomaly_close'])*100 for close in list(crash_closes)]
     
     # determine which passed threshold
-    thresh_pass = [drop > perc_drop_req for drop in perc_drops]
+    thresh_passes = [(-1*drop) > perc_drop_req for drop in perc_changes]
     
-    if (any(thresh_pass)):
-        thresh_passes[i] = True
-    else:
-        thresh_passes[i] = False
+    # add to output table
+    for crash_date, crash_close, perc_change, thresh_pass in zip(crash_dates, crash_closes, perc_changes, thresh_passes):
+        changes_to_concat = pd.DataFrame({
+            'date': [crash_date],
+            'close': [crash_close],
+            'percent_change': [perc_change],
+            'significant_drop': [thresh_pass]
+        })
+        if changes_to_concat['percent_change'].iloc[0] == 0:
+            j = j+1
+        changes_to_concat['anomaly'] = j
 
+        potential_drop_list.append(changes_to_concat)
 
+potential_drops = pd.concat(potential_drop_list, ignore_index = True)
 
-close_diffs[close_diffs['percent_difference'] >= perc_drop_req]
