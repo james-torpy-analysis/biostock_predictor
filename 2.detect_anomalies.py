@@ -193,3 +193,34 @@ for i, row in close_diffs.iterrows():
 
 potential_drops = pd.concat(potential_drop_list, ignore_index = True)
 
+# fetch the first and last dates of each true drop
+potential_drops['first_drop'] = potential_drops['significant_drop'] & \
+    (~potential_drops['significant_drop'].shift(1, fill_value=False))
+potential_drops['last_drop'] = potential_drops['significant_drop'] & \
+    (~potential_drops['significant_drop'].shift(-1, fill_value=False))
+
+first_drops = potential_drops.iloc[np.where(potential_drops['first_drop'])[0], ][['date', 'close']]
+first_drops.columns = ['start_date', 'start_close']
+first_drops = first_drops.reset_index()
+
+last_drops = potential_drops.iloc[np.where(potential_drops['last_drop'])[0], ][['date', 'close']]
+last_drops.columns = ['end_date', 'end_close']
+last_drops = last_drops.reset_index()
+
+# fetch the pre-drop closes - need to get from original df, not potential drops!
+pre_drops = potential_drops.iloc[np.where(potential_drops['first_drop'])[0]-1, ][['date', 'close']]
+pre_drops.columns = ['predrop_date', 'predrop_close']
+pre_drops = pre_drops.reset_index()
+
+drops = pd.concat([
+    pre_drops,
+    first_drops, 
+    last_drops],
+    axis=1)
+
+
+# Example DataFrames
+df1 = pd.DataFrame({
+    'A': [1, 2],
+    'B': [4, 5]
+})
