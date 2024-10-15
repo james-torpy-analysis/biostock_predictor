@@ -52,18 +52,20 @@ def predict_anomalies(data_df, cont_val, acolname):
     
     return data_df
 
-def plot_anomalies(data_df, mcolname, acolname, drop_range = None):
+def plot_anomalies(data_df, mcolname, acolname, drop_ranges = None):
 
-    plt.figure(figsize=(13,5))
-    plt.plot(data_df.index, data_df[mcolname], label=mcolname)
+    fig, ax = plt.subplots(figsize=(13, 5))
 
-    if drop_range is not None:
-        mask = (data_df.index >= drop_range[0]) & (data_df.index <= drop_range[1])
-        plt.plot(data_df.index[mask], data_df[mcolname][mask], color = 'red', linewidth=2, label='Significant drop')
+    ax.plot(data_df.index, data_df[mcolname], label=mcolname)
 
-    plt.scatter(data_df[data_df[acolname] == 1].index, data_df[data_df[acolname] == 1][mcolname], color='red')
-    plt.legend([mcolname, acolname])
-    plt.show()
+    if drop_ranges is not None:
+        ax.plot(data_df.index[data_df['drop'] == True], data_df[mcolname][data_df['drop'] == True], \
+            color = 'red', linewidth=2, label='Notable crash')
+
+    ax.scatter(data_df[data_df[acolname] == 1].index, data_df[data_df[acolname] == 1][mcolname], color='red')
+    ax.legend([mcolname, acolname])
+    
+    return(fig)
     
 def plot_anomaly_sets(data_df):
     plot_anomalies(data_df, mcolname = "VolumeClose", acolname = 'Anomalies_0.01_contamination')
@@ -246,123 +248,20 @@ def find_crashes(anomaly_df, orig_df):
     drops = drops[['predrop_date', 'predrop_close', 'start_date', 'start_close', 'percent_initial_drop', \
         'end_date', 'end_close', 'percent_overall_drop']]
     
-
-
-    
     # add start drop and end drop columns to orig_df
-    [dateentry in drops['start_date'] for dateentry in orig_df.index]
+    orig_df['start_drop'] = [dateentry in list(drops['start_date']) for dateentry in orig_df.index]
+    orig_df['end_drop'] = [dateentry in list(drops['end_date']) for dateentry in orig_df.index]
+
+    # add drop and crash_no columns to orig_df
+    orig_df['drop'] = False
+    for i in range(0,drops.shape[0]):
+        mask1 = orig_df.index >= drops.iloc[i,]['predrop_date']
+        mask2 = orig_df.index <= drops.iloc[i,]['end_date']
+        orig_df['drop'][mask1 & mask2] = True
+
+    orig_df['crash_no'] = orig_df['start_drop'].cumsum().where(orig_df['drop'], np.nan)
     
     # plot stocks with start drop marked, and whole drop shaded
-    # plot_anomalies(data_df, mcolname, acolname, drop_range = None)
+    return(drops, plot_anomalies(orig_df, mcolname = 'Adj Close', acolname = 'start_drop', drop_ranges = orig_df['drop']))
 
-
-# fetch array of anomaly close values
-df = predicted_anomalies['RAPT']
-anomaly_ind = np.where(df['Anomalies_0.01_contamination'] == 1)[0]
-anomaly_df = df.iloc[anomaly_ind,]
-anomaly_closes = anomaly_df['Close'].tolist()
-
-# fetch array of the values of the datapoints right before the anomalies
-preanomaly_df = df.iloc[anomaly_ind-1,]
-preanomaly_closes = preanomaly_df['Close'].tolist()
-
-# find the indices of the crashes, where the anomaly close value is less than the preanomaly close value
-crash_logical = [anomaly < preanomaly for anomaly, preanomaly in zip(anomaly_closes, preanomaly_closes)]
-crash_ind = anomaly_ind[crash_logical]
-
-# check and calculate close differences of crashes (preanomaly close < anomaly close)
-close_diffs = pd.concat([df['Close'][crash_ind-1].reset_index(drop = True), df['Close'][crash_ind].reset_index(drop = True)], axis = 1)
-close_diffs.index = df['Close'][crash_ind].index
-
-# determine the indices of anomalies in crash_data['RAPT']
-anomaly_ind = [np.where(crash_data['RAPT'].index == c)[0][0] for c in close_diffs.index]
-
-# take only the first index of consecutive sequences of indices
-anomaly_ind2 = extract_first_indices(anomaly_ind)
-
-# subset anomaly_ind and close_diffs
-anomaly_ind = [ind for i, ind in enumerate(anomaly_ind) if i in anomaly_ind2]
-close_diffs = close_diffs.iloc[anomaly_ind2,]
-
-# insert the preanomaly dates using anomaly_ind - 1
-preanomaly_ind = [ind-1 for ind in anomaly_ind]
-close_diffs.insert(0, 'preanomaly_date', crash_data['RAPT'].index[preanomaly_ind])
-close_diffs.columns = ['preanomaly_date', 'preanomaly_close', 'anomaly_close']
-close_diffs['close_difference'] = close_diffs['anomaly_close'] - close_diffs['preanomaly_close']
-close_diffs['percent_difference_from_preanomaly'] = abs(close_diffs['close_difference']/close_diffs['preanomaly_close']*100).round(1)
-
-# filter for those with a drop of at least perc_drop_req within perc_drop_time
-# create output table
-potential_drop_list = []
-
-# iterate through the close_diffs rows
-j=0
-for i, row in close_diffs.iterrows():
-    
-    # identify index of crash_data with same date as row plus next perc_drop_time rows
-    pre_ind = np.where(row['preanomaly_date'] == crash_data['RAPT'].index)[0][0]
-    row_inds = range(pre_ind, (pre_ind+perc_drop_time))
-
-    # fetch the dates and closes of these timepoints
-    crash_vals = crash_data['RAPT'].iloc[row_inds, ]
-    crash_dates = crash_vals.index
-    crash_closes = crash_vals['Close']
-    
-    # calculate percentage changes from preanomaly close
-    perc_changes = [((close - row['preanomaly_close'])/row['preanomaly_close'])*100 for close in list(crash_closes)]
-    
-    # determine which passed threshold
-    thresh_passes = [(-1*drop) > perc_drop_req for drop in perc_changes]
-    
-    # add to output table
-    for crash_date, crash_close, perc_change, thresh_pass in zip(crash_dates, crash_closes, perc_changes, thresh_passes):
-        changes_to_concat = pd.DataFrame({
-            'date': [crash_date],
-            'close': [crash_close],
-            'percent_change': [perc_change],
-            'significant_drop': [thresh_pass]
-        })
-        if changes_to_concat['percent_change'].iloc[0] == 0:
-            j = j+1
-        changes_to_concat['anomaly'] = j
-
-        potential_drop_list.append(changes_to_concat)
-
-potential_drops = pd.concat(potential_drop_list, ignore_index = True)
-
-# fetch the first and last dates of each true drop
-potential_drops['first_drop'] = potential_drops['significant_drop'] & \
-    (~potential_drops['significant_drop'].shift(1, fill_value=False))
-potential_drops['last_drop'] = potential_drops['significant_drop'] & \
-    (~potential_drops['significant_drop'].shift(-1, fill_value=False))
-
-first_drops = potential_drops.iloc[np.where(potential_drops['first_drop'])[0], ][['date', 'close']]
-first_drops.columns = ['start_date', 'start_close']
-first_drops = first_drops.reset_index()
-
-last_drops = potential_drops.iloc[np.where(potential_drops['last_drop'])[0], ][['date', 'close']]
-last_drops.columns = ['end_date', 'end_close']
-last_drops = last_drops.reset_index()
-
-# fetch the pre-drop closes - need to get from original df, not potential drops!
-pre_drops = potential_drops.iloc[np.where(potential_drops['first_drop'])[0]-1, ][['date', 'close']]
-pre_drops.columns = ['predrop_date', 'predrop_close']
-pre_drops = pre_drops.reset_index()
-
-drops = pd.concat([
-    pre_drops,
-    first_drops, 
-    last_drops],
-    axis=1)
-
-
-
-
-
-
-
-# Example DataFrames
-df1 = pd.DataFrame({
-    'A': [1, 2],
-    'B': [4, 5]
-})
+results = find_crashes(predicted_anomalies['GPCR'], crash_data['GPCR'])
