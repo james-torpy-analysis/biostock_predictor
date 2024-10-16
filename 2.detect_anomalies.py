@@ -262,6 +262,12 @@ def find_crashes(anomaly_df, orig_df):
     orig_df['crash_no'] = orig_df['start_drop'].cumsum().where(orig_df['drop'], np.nan)
     
     # plot stocks with start drop marked, and whole drop shaded
-    return(drops, plot_anomalies(orig_df, mcolname = 'Adj Close', acolname = 'start_drop', drop_ranges = orig_df['drop']))
+    close_drop_plot = plot_anomalies(orig_df, mcolname = 'Adj Close', \
+        acolname = 'start_drop', drop_ranges = orig_df['drop'])
+    vol_drop_plot = plot_anomalies(orig_df, mcolname = 'Volume', \
+        acolname = 'start_drop', drop_ranges = orig_df['drop'])
+    volclose_drop_plot = plot_anomalies(orig_df, mcolname = 'VolumeClose', \
+        acolname = 'start_drop', drop_ranges = orig_df['drop'])
+    return(drops, close_drop_plot, vol_drop_plot, volclose_drop_plot)
 
 results = find_crashes(predicted_anomalies['GPCR'], crash_data['GPCR'])

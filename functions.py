@@ -1,14 +1,45 @@
 
-# Functions for prediction of biostock recovery following a crash project
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+#     Title: Functions for prediction of biostock recovery following a crash project
+#     Author: James Torpy
+#     Contact details:james.torpy@gmail.com
+#     Date created: 16/10/24
+#     Date updated: 
+#     Description: Functions to download NASDAQ data from Yahoo Finance and detect 
+#                  anomalies using isolation forests
+#                  To learn how to implement an isolation forest to detect anomalies
+#                  in stock prices
+#                  https://codime.medium.com/anomaly-detection-in-financial-data-using-isolation-forest-2515b4572bc8
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+#########################################################################################
+### Load required libraries ###
+#########################################################################################
+
+# downloading data
+import os
+import csv
+import urllib.request
+import yfinance as yf
+
+# predicting anomalies and crashes
+from sklearn.ensemble import IsolationForest
+import matplotlib.pyplot as plt
+
 
 #########################################################################################
 ### Functions to download data ###
 #########################################################################################
 
-# function to download NASDAQ symbols and parse into a list
 def get_symbols():
-    
-    import urllib.request
+
+    '''Downloads NASDAQ symbols and parses into a list.
+
+    Returns:
+        A list of NASDAQ symbols.
+    '''
     
     # download symbols
     url = "https://www.nasdaqtrader.com/dynamic/symdir/nasdaqlisted.txt"
@@ -19,38 +50,22 @@ def get_symbols():
     symbols = [line.split("|")[0] for line in data.strip().splitlines()[1:]]
     return(symbols)
 
-# function to split the stock data output into a df for each symbol
-def split_stock_data(stock_df):
-    
-    import pandas as pd
-    
-    # get symbols
-    symbols = list(stock_df['Adj Close'].columns)
-    
-    # get unique level 0 values
-    unique_levels = stock_df.columns.get_level_values(0).unique()
-    
-    # create dictionary with empty dataframes to catch values
-    split_data = {}
-    for symbol in symbols:
-        split_data[symbol] = pd.DataFrame()
-    
-    # for each symbol, grab each level of data and bind it to the symbol's data frame
-    for symbol in symbols:
-        for level in unique_levels:
-            # select level
-            df_level = stock_df[level]
-            # add values to dictionary for symbol
-            split_data[symbol][level] = df_level[symbol]
-            
-    return split_data
 
-# function to download nasdaq stock data in batches
+# function to 
 def download_stock_data(symbol_list, data_window, batch_size, out_dir):
     
-    import yfinance as yf
-    import os
-    import csv
+    '''Downloads NASDAQ stock data in batches.
+
+    Args:
+        symbol_list: A list of NASDAQ symbols to download data for.
+        data_window: The number of past days to download stock data for, starting from today.
+        batch_size: The number of symbols to download per batch, to avoid blocking from Yahoo.
+        out_dir: The output directory to store the data in.
+
+    Returns:
+        A dictionary of dfs of stock data, including datetime, adj. close, volume. Each key-value
+        pair represents data for a different NASDAQ symbol.
+    '''
     
     # create empty dictionary to catch values
     out_dict = {}
@@ -82,12 +97,62 @@ def download_stock_data(symbol_list, data_window, batch_size, out_dir):
     
     return final_dict
 
+# def split_stock_data(stock_df):
+
+#     '''Splits the stock data output into a df for each symbol.
+
+#     Args:
+#         lst: A list of integers.
+
+#     Returns:
+#         A list of the first indices of concurrent sequences.
+#     '''
+    
+#     import pandas as pd
+    
+#     # get symbols
+#     symbols = list(stock_df['Adj Close'].columns)
+    
+#     # get unique level 0 values
+#     unique_levels = stock_df.columns.get_level_values(0).unique()
+    
+#     # create dictionary with empty dataframes to catch values
+#     split_data = {}
+#     for symbol in symbols:
+#         split_data[symbol] = pd.DataFrame()
+    
+#     # for each symbol, grab each level of data and bind it to the symbol's data frame
+#     for symbol in symbols:
+#         for level in unique_levels:
+#             # select level
+#             df_level = stock_df[level]
+#             # add values to dictionary for symbol
+#             split_data[symbol][level] = df_level[symbol]
+            
+#     return split_data
+
+
 #########################################################################################
 ### Functions to detect anomalies ###
 #########################################################################################
 
 # function to predict anomalies
 def predict_anomalies(data_df, cont_val, acolname):
+
+    '''Predicts anamolies in NASDAQ stock data dfs.
+
+    Args:
+        
+        data_df: A NASDAQ stock data df outputted from download_stock_data.
+        cont_val: A parameter of the IsolationForest function which controls the detection
+                  sensitivity. Input value is an estimation of the amount of contamination 
+                  of the data set, i.e. the proportion of outliers.
+        acolname: The name of the anomaly output column
+
+    Returns:
+        The input df data_df with an additional boolean column indicating detection (True) 
+        or no detection (False) of anomalies.
+    '''
 
     # Create VolumeClose feature
     data_df['VolumeClose'] = data_df['Adj Close'] * data_df['Volume']
@@ -102,16 +167,37 @@ def predict_anomalies(data_df, cont_val, acolname):
     
     return data_df
 
-# function to plot anomalies on a time series line plot
-def plot_anomalies(data_df, mcolname, acolname):
-    plt.figure(figsize=(13,5))
-    plt.plot(data_df.index, data_df[mcolname], label=mcolname)
-    plt.scatter(data_df[data_df[acolname] == 1].index, data_df[data_df[acolname] == 1][mcolname], color='red')
-    plt.legend([mcolname, acolname])
-    plt.show()
 
-# function to plot anomalies on plots of different metrics 
-def plot_anomaly_sets(data_df):
-    plot_anomalies(data_df, mcolname = "VolumeClose", acolname = 'Anomalies_0.01_contamination')
-    plot_anomalies(data_df, mcolname = "Adj Close", acolname = 'Anomalies_0.01_contamination')
-    plot_anomalies(data_df, mcolname = "Volume", acolname = 'Anomalies_0.01_contamination')
+# function to plot anomalies on a time series line plot
+def plot_anomalies(data_df, mcolname, acolname, drop_ranges = None):
+
+    fig, ax = plt.subplots(figsize=(13, 5))
+
+    ax.plot(data_df.index, data_df[mcolname], label=mcolname)
+
+    if drop_ranges is not None:
+        ax.plot(data_df.index[data_df['drop'] == True], data_df[mcolname][data_df['drop'] == True], \
+            color = 'red', linewidth=2, label='Notable crash')
+
+    ax.scatter(data_df[data_df[acolname] == 1].index, data_df[data_df[acolname] == 1][mcolname], color='red')
+    ax.legend([mcolname, acolname])
+    
+    return(fig)
+
+def extract_first_indices(lst):
+    '''Extracts the first index of concurrent sequences of indices from a list.
+
+    Args:
+        lst: A list of integers.
+
+    Returns:
+        A list of the first indices of concurrent sequences.
+    '''
+
+    first_indices = [0]
+  
+    for i, val in enumerate(lst):
+        if i != 0:
+            if lst[i] != lst[i - 1] + 1:  # Check if the current number is not consecutive
+                first_indices.append(i)
+    return first_indices
