@@ -116,39 +116,39 @@ def extract_first_indices(lst):
     return first_indices
 
 
-# def split_stock_data(stock_df):
+def split_stock_data(stock_df):
 
-#     '''Splits the stock data output into a df for each symbol.
+    '''Splits the stock data output into a df for each symbol.
 
-#     Args:
-#         lst: A list of integers.
+    Args:
+        lst: A list of integers.
 
-#     Returns:
-#         A list of the first indices of concurrent sequences.
-#     '''
+    Returns:
+        A list of the first indices of concurrent sequences.
+    '''
     
-#     import pandas as pd
+    import pandas as pd
     
-#     # get symbols
-#     symbols = list(stock_df['Adj Close'].columns)
+    # get symbols
+    symbols = list(stock_df['Adj Close'].columns)
     
-#     # get unique level 0 values
-#     unique_levels = stock_df.columns.get_level_values(0).unique()
+    # get unique level 0 values
+    unique_levels = stock_df.columns.get_level_values(0).unique()
     
-#     # create dictionary with empty dataframes to catch values
-#     split_data = {}
-#     for symbol in symbols:
-#         split_data[symbol] = pd.DataFrame()
+    # create dictionary with empty dataframes to catch values
+    split_data = {}
+    for symbol in symbols:
+        split_data[symbol] = pd.DataFrame()
     
-#     # for each symbol, grab each level of data and bind it to the symbol's data frame
-#     for symbol in symbols:
-#         for level in unique_levels:
-#             # select level
-#             df_level = stock_df[level]
-#             # add values to dictionary for symbol
-#             split_data[symbol][level] = df_level[symbol]
+    # for each symbol, grab each level of data and bind it to the symbol's data frame
+    for symbol in symbols:
+        for level in unique_levels:
+            # select level
+            df_level = stock_df[level]
+            # add values to dictionary for symbol
+            split_data[symbol][level] = df_level[symbol]
             
-#     return split_data
+    return split_data
 
 
 #########################################################################################
